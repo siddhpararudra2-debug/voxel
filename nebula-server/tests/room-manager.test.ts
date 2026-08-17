@@ -24,7 +24,7 @@ describe('RoomManager', () => {
     expect(() => manager.updatePlayer('alpha', 'user-1', {
       position: { x: 1000, y: 0, z: 0 },
       velocity: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 }
+      rotation: { x: 0, y: 0, z: 0, w: 1 }
     })).toThrow('Movement rejected');
   });
 
@@ -34,5 +34,19 @@ describe('RoomManager', () => {
     expect(manager.canBuild(faction.factionId, 'leader')).toBe(true);
     expect(manager.canBuild(faction.factionId, 'outsider')).toBe(false);
     expect(() => manager.modifyVoxel('leader', '0_0_0', 16, 0, 0, 1)).toThrow('Invalid voxel coordinate');
+  });
+
+  it('accepts coordinate and ship entity chunk keys while rejecting malformed keys', () => {
+    const manager = new RoomManager();
+    expect(() => manager.modifyVoxel('pilot', '-2_0_7', 0, 0, 0, 1)).not.toThrow();
+    expect(() => manager.modifyVoxel('pilot', 'ship:starter-vessel', 1, 1, 1, 8)).not.toThrow();
+    expect(() => manager.modifyVoxel('pilot', 'd_d_d', 1, 1, 1, 8)).toThrow('Invalid voxel coordinate');
+  });
+
+  it('allows only a faction leader to add members', () => {
+    const manager = new RoomManager();
+    const faction = manager.createFaction('Builders', 'leader');
+    expect(() => manager.addFactionMember(faction.factionId, 'pilot', 'outsider')).toThrow('Only the faction leader');
+    expect(() => manager.addFactionMember(faction.factionId, 'pilot', 'leader')).not.toThrow();
   });
 });

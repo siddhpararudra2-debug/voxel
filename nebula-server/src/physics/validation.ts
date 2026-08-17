@@ -12,7 +12,9 @@ export class PhysicsValidator {
   }
 
   validateVoxelEdit(chunkKey: string, x: number, y: number, z: number): boolean {
-    if (!/^-?\\d+_-?\\d+_-?\\d+$/.test(chunkKey)) return false;
+    const coordinateChunk = /^-?\d+_-?\d+_-?\d+$/;
+    const shipEntityChunk = /^ship:[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+    if (!coordinateChunk.test(chunkKey) && !shipEntityChunk.test(chunkKey)) return false;
     return Number.isInteger(x) && Number.isInteger(y) && Number.isInteger(z) &&
       x >= 0 && x < 16 && y >= 0 && y < 16 && z >= 0 && z < 16;
   }

@@ -10,7 +10,7 @@ export interface Rotation {
   x: number;
   y: number;
   z: number;
-  w?: number;
+  w: number;
 }
 
 export interface PlayerState {

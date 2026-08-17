@@ -4,7 +4,7 @@ import { RoomManager } from '../sockets/room-manager.js';
 
 export class AutosaveWorker {
   private timer?: NodeJS.Timeout;
-  private running = false;
+  private flushInFlight?: Promise<void>;
 
   constructor(private readonly rooms: RoomManager, private readonly repository: GameRepository) {}
 
@@ -20,8 +20,12 @@ export class AutosaveWorker {
   }
 
   async flush(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
+    if (this.flushInFlight) return this.flushInFlight;
+    this.flushInFlight = this.flushSnapshot().finally(() => { this.flushInFlight = undefined; });
+    return this.flushInFlight;
+  }
+
+  private async flushSnapshot(): Promise<void> {
     const snapshot = this.rooms.dirtySnapshot();
     try {
       await Promise.all([
@@ -32,8 +36,6 @@ export class AutosaveWorker {
       this.rooms.markClean();
     } catch (error) {
       console.error('[autosave] flush failed; dirty state retained for retry', error);
-    } finally {
-      this.running = false;
     }
   }
 }

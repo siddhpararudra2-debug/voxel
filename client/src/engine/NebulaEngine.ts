@@ -180,8 +180,8 @@ export class NebulaEngine {
       const telemetry: GameTelemetry = { mode, speed, altitude: Math.max(0, position.y - 7), oxygen: mode === "EVA" ? 88 : 97, reactor, fuel, hull: 100, centerOfMass: [this.ship.centerOfMass.x, this.ship.centerOfMass.y, this.ship.centerOfMass.z], network: this.networkStatus, drawCalls: this.renderer.info.render.calls };
       this.events.onTelemetry(telemetry);
       this.diegeticTelemetry.update(telemetry);
-      networkClient.emitPlayerMove({ position: { x: position.x, y: position.y, z: position.z }, velocity: { x: velocity.x, y: velocity.y, z: velocity.z }, rotation: { x: this.camera.rotation.x, y: this.camera.rotation.y, z: this.camera.rotation.z, w: this.camera.quaternion.w } });
-      if (this.ship.flightMode) networkClient.emitShipSteer({ shipId: "starter-vessel", thrusters: { forward: this.input.forward, reverse: this.input.back, port: this.input.left, starboard: this.input.right, ascend: this.input.ascend, descend: this.input.descend, rollLeft: this.input.rollLeft, rollRight: this.input.rollRight, pitchUp: this.input.pitchUp, pitchDown: this.input.pitchDown }, coreTemperature: reactor, fuel });
+      networkClient.emitPlayerMove({ position: { x: position.x, y: position.y, z: position.z }, velocity: { x: velocity.x, y: velocity.y, z: velocity.z }, rotation: { x: this.camera.quaternion.x, y: this.camera.quaternion.y, z: this.camera.quaternion.z, w: this.camera.quaternion.w } });
+      if (this.ship.flightMode) networkClient.emitShipSteer({ shipId: "00000000-0000-4000-8000-000000000001", thrusters: { forward: this.input.forward, reverse: this.input.back, port: this.input.left, starboard: this.input.right, ascend: this.input.ascend, descend: this.input.descend, rollLeft: this.input.rollLeft, rollRight: this.input.rollRight, pitchUp: this.input.pitchUp, pitchDown: this.input.pitchDown }, coreTemperature: reactor, fuel: fuel / 100 });
       this.lastTelemetry = performance.now();
     }
   }

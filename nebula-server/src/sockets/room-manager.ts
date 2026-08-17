@@ -23,7 +23,6 @@ export class RoomManager {
       room = { roomId, createdAt: Date.now(), players: new Map() };
       this.rooms.set(roomId, room);
     }
-    if (!room) throw new Error('Unable to create room');
     if (!room.players.has(player.userId) && room.players.size >= env.ROOM_MAX_PLAYERS) {
       throw new Error('Room is full');
     }
@@ -68,16 +67,26 @@ export class RoomManager {
     return updated;
   }
 
-  createFaction(name: string, leaderId: string): Faction {
-    const faction: Faction = { factionId: randomUUID(), name, leaderId, memberIds: new Set([leaderId]), friendlyFire: false, basePermissions: new Set([leaderId]) };
+  createFaction(name: string, leaderId: string, factionId: string = randomUUID()): Faction {
+    const faction: Faction = { factionId, name, leaderId, memberIds: new Set([leaderId]), friendlyFire: false, basePermissions: new Set([leaderId]) };
     this.factions.set(faction.factionId, faction);
     return faction;
   }
 
-  addFactionMember(factionId: string, userId: string): Faction {
+  getFaction(factionId: string): Faction | undefined { return this.factions.get(factionId); }
+
+  canAddFactionMember(factionId: string, userId: string, requestedBy: string): boolean {
     const faction = this.factions.get(factionId);
     if (!faction) throw new Error('Faction not found');
-    if (faction.memberIds.size >= env.ROOM_MAX_PLAYERS) throw new Error('Faction is full');
+    if (faction.leaderId !== requestedBy) throw new Error('Only the faction leader can add members');
+    return faction.memberIds.has(userId) || faction.memberIds.size < env.ROOM_MAX_PLAYERS;
+  }
+
+  addFactionMember(factionId: string, userId: string, requestedBy: string): Faction {
+    const faction = this.factions.get(factionId);
+    if (!faction) throw new Error('Faction not found');
+    if (faction.leaderId !== requestedBy) throw new Error('Only the faction leader can add members');
+    if (!faction.memberIds.has(userId) && faction.memberIds.size >= env.ROOM_MAX_PLAYERS) throw new Error('Faction is full');
     faction.memberIds.add(userId);
     faction.basePermissions.add(userId);
     return faction;

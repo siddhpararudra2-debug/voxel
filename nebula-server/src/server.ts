@@ -28,10 +28,15 @@ app.post('/api/factions', requireAuth, async (req: AuthenticatedRequest, res) =>
   try {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     if (!name || name.length > 48) return res.status(400).json({ error: 'Faction name is required and must be 48 characters or fewer' });
-    const faction = rooms.createFaction(name, req.userId!);
     const factionId = await repository.createFaction(name, req.userId!);
-    await repository.addFactionMember(factionId, req.userId!);
-    return res.status(201).json({ ...faction, factionId });
+    try {
+      await repository.addFactionMember(factionId, req.userId!);
+      const faction = rooms.createFaction(name, req.userId!, factionId);
+      return res.status(201).json({ ...faction, factionId });
+    } catch (error) {
+      await repository.deleteFaction(factionId).catch((rollbackError) => console.error('[factions] unable to roll back failed faction creation', rollbackError));
+      throw error;
+    }
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'Faction creation failed' });
   }
@@ -42,11 +47,24 @@ app.post('/api/factions/:factionId/members', requireAuth, async (req: Authentica
     const userId = typeof req.body?.userId === 'string' ? req.body.userId : '';
     const factionId = String(req.params.factionId);
     if (!userId) return res.status(400).json({ error: 'userId is required' });
-    const faction = rooms.addFactionMember(factionId, userId);
+    const persistedFaction = await repository.getFaction(factionId);
+    if (!persistedFaction) return res.status(404).json({ error: 'Faction not found' });
+    if (persistedFaction.leaderId !== req.userId) return res.status(403).json({ error: 'Only the faction leader can add members' });
+    if (!rooms.getFaction(factionId)) rooms.createFaction(persistedFaction.name, persistedFaction.leaderId, persistedFaction.factionId);
+    const canAdd = rooms.canAddFactionMember(factionId, userId, req.userId!);
+    if (!canAdd) return res.status(400).json({ error: 'Faction is full' });
     await repository.addFactionMember(factionId, userId);
-    return res.status(200).json(faction);
+    try {
+      const faction = rooms.addFactionMember(factionId, userId, req.userId!);
+      return res.status(200).json(faction);
+    } catch (error) {
+      await repository.removeFactionMember(factionId, userId).catch((rollbackError) => console.error('[factions] unable to roll back failed membership update', rollbackError));
+      throw error;
+    }
   } catch (error) {
-    return res.status(400).json({ error: error instanceof Error ? error.message : 'Unable to add member' });
+    const message = error instanceof Error ? error.message : 'Unable to add member';
+    const status = message === 'Only the faction leader can add members' ? 403 : message === 'Faction not found' ? 404 : 400;
+    return res.status(status).json({ error: message });
   }
 });
 

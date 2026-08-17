@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import type { PlayerState, ShipState, VoxelChunk } from '../models/domain.js';
 
+export type PersistedFaction = { factionId: string; name: string; leaderId: string };
+
 export class GameRepository {
   async saveChunks(chunks: VoxelChunk[]): Promise<void> {
     if (!chunks.length) return;
@@ -54,8 +56,25 @@ export class GameRepository {
     return data.faction_id as string;
   }
 
+  async getFaction(factionId: string): Promise<PersistedFaction | null> {
+    const { data, error } = await supabaseAdmin.from('factions').select('faction_id, name, leader_id').eq('faction_id', factionId).maybeSingle();
+    if (error) throw new Error(`Failed to read faction: ${error.message}`);
+    if (!data) return null;
+    return { factionId: data.faction_id as string, name: data.name as string, leaderId: data.leader_id as string };
+  }
+
   async addFactionMember(factionId: string, userId: string): Promise<void> {
     const { error } = await supabaseAdmin.from('faction_members').upsert({ faction_id: factionId, user_id: userId });
     if (error) throw new Error(`Failed to add faction member: ${error.message}`);
+  }
+
+  async removeFactionMember(factionId: string, userId: string): Promise<void> {
+    const { error } = await supabaseAdmin.from('faction_members').delete().eq('faction_id', factionId).eq('user_id', userId);
+    if (error) throw new Error(`Failed to roll back faction member: ${error.message}`);
+  }
+
+  async deleteFaction(factionId: string): Promise<void> {
+    const { error } = await supabaseAdmin.from('factions').delete().eq('faction_id', factionId);
+    if (error) throw new Error(`Failed to roll back faction: ${error.message}`);
   }
 }
