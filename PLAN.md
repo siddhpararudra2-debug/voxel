@@ -39,3 +39,7 @@ The client consists of a full-screen Three.js scene, an industrial-aerospace Rea
 ## Scope Boundary
 
 This delivery implements the complete **client-side demonstrator** specified in the PRD. A persistent ten-player world, credentials, authoritative inventory, and market transactions require the separately specified backend endpoint and protocol; the typed event boundary is present so those systems can be connected without rewriting the game loop.
+
+## PRD 1 Completion Addendum
+
+The revised frontend PRD adds a local-development contract and an explicit authenticated integration handshake. The client now uses a compound Cannon-es capsule approximation, applies six-degree vessel forces and torques, renders diegetic cockpit/visor telemetry, sends `player:move`, `voxel:modify`, and `ship:steer` schemas, consumes the server event set, and runs an IndexedDB-backed mock transport when an endpoint or token is absent. See `PRD_1_RECONCILIATION.md` for the requirement-by-requirement record.

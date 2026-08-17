@@ -5,6 +5,7 @@ import { EquipmentDrawer } from "@/components/EquipmentDrawer";
 import { GameCanvas, type GameCanvasHandle } from "@/components/GameCanvas";
 import { HUD } from "@/components/HUD";
 import type { GameTelemetry } from "@/engine/NebulaEngine";
+import { networkClient } from "@/network/NetworkClient";
 
 const initialTelemetry: GameTelemetry = { mode: "SURFACE", speed: 0, altitude: 0, oxygen: 97, reactor: 42, fuel: 86, hull: 100, centerOfMass: [0, 0, 0], network: "LOCAL", drawCalls: 0 };
 
@@ -12,10 +13,11 @@ export default function Home() {
   const [entered, setEntered] = useState(false);
   const [panel, setPanel] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<GameTelemetry>(initialTelemetry);
+  const [authToken, setAuthToken] = useState(() => sessionStorage.getItem("nebula-bound-jwt") ?? "");
   const engine = useRef<GameCanvasHandle | null>(null);
   const setReady = useCallback((handle: GameCanvasHandle) => { engine.current = handle; }, []);
   const beginDemo = useCallback(() => setEntered(true), []);
-  const enterWorld = () => { engine.current?.begin(); setEntered(true); };
+  const enterWorld = () => { networkClient.setAuthToken(authToken); networkClient.connect(); engine.current?.begin(); setEntered(true); };
 
   useEffect(() => {
     const onPanelKey = (event: KeyboardEvent) => {
@@ -30,7 +32,7 @@ export default function Home() {
   }, [entered]);
 
   return <main className="game-shell"><GameCanvas onReady={setReady} onTelemetry={setTelemetry} onDemoStart={beginDemo} />
-    {!entered && <AccessScreen onEnter={enterWorld} network={telemetry.network} />}
+    {!entered && <AccessScreen onEnter={enterWorld} network={telemetry.network} authToken={authToken} onAuthTokenChange={setAuthToken} />}
     {entered && <><HUD telemetry={telemetry} panel={panel} onPanel={setPanel} onFlight={() => engine.current?.toggleFlight()} /><EquipmentDrawer panel={panel} onClose={() => setPanel(null)} onCraftCargo={() => engine.current?.craftCargo()} /></>}
   </main>;
 }

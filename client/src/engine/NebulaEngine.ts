@@ -4,14 +4,16 @@ import * as THREE from "three";
 import { PlayerController, type MovementInput } from "@/physics/PlayerController";
 import { ShipController } from "@/physics/ShipController";
 import { networkClient, type NetworkStatus } from "@/network/NetworkClient";
+import type { PlayerState } from "@/network/protocol";
 import { atmosphereFragment, atmosphereVertex } from "@/shaders/spaceShaders";
 import { ChunkManager } from "@/voxels/ChunkManager";
+import { DiegeticTelemetry } from "./DiegeticTelemetry";
 
 export type FlightMode = "SURFACE" | "EVA" | "FLIGHT";
 export type GameTelemetry = { mode: FlightMode; speed: number; altitude: number; oxygen: number; reactor: number; fuel: number; hull: number; centerOfMass: [number, number, number]; network: NetworkStatus; drawCalls: number };
 type EngineEvents = { onTelemetry: (telemetry: GameTelemetry) => void; onFlightChange: (mode: FlightMode) => void };
 
-const emptyInput = (): MovementInput => ({ forward: false, back: false, left: false, right: false, ascend: false, descend: false, jump: false });
+const emptyInput = (): MovementInput => ({ forward: false, back: false, left: false, right: false, ascend: false, descend: false, jump: false, rollLeft: false, rollRight: false, pitchUp: false, pitchDown: false });
 
 export class NebulaEngine {
   private readonly renderer: THREE.WebGLRenderer;
@@ -21,8 +23,10 @@ export class NebulaEngine {
   private readonly chunks = new ChunkManager();
   private readonly player = new PlayerController(this.world);
   private readonly ship = new ShipController(this.world);
+  private readonly diegeticTelemetry: DiegeticTelemetry;
   private readonly clock = new THREE.Clock();
   private readonly input = emptyInput();
+  private readonly remotePlayers = new Map<string, THREE.Mesh>();
   private readonly events: EngineEvents;
   private active = false;
   private demo = false;
@@ -43,6 +47,8 @@ export class NebulaEngine {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.camera.rotation.order = "YXZ";
     this.configureScene();
+    this.scene.add(this.camera);
+    this.diegeticTelemetry = new DiegeticTelemetry(this.ship.group, this.camera);
     this.canvas.addEventListener("click", this.requestPointerLock);
     window.addEventListener("keydown", this.keyDown);
     window.addEventListener("keyup", this.keyUp);
@@ -50,6 +56,11 @@ export class NebulaEngine {
     window.addEventListener("resize", this.resize);
     networkClient.connect();
     networkClient.onStatus((status) => { this.networkStatus = status; });
+    networkClient.onEvent("room:joined", ({ players }) => players.forEach((player) => this.upsertRemotePlayer(player)));
+    networkClient.onEvent("player:joined", (player) => this.upsertRemotePlayer(player));
+    networkClient.onEvent("player:moved", (player) => this.upsertRemotePlayer(player));
+    networkClient.onEvent("player:left", ({ userId }) => this.removeRemotePlayer(userId));
+    networkClient.onEvent("server:error", ({ event, message }) => console.warn(`[network] ${event}: ${message}`));
     this.renderer.setAnimationLoop(this.animate);
   }
 
@@ -103,6 +114,8 @@ export class NebulaEngine {
     this.active = true;
     this.demo = true;
     this.ship.setFlightMode(true);
+    this.camera.position.set(20, 18.5, 25);
+    this.camera.lookAt(new THREE.Vector3(0, 7.8, 0));
     this.events.onFlightChange("FLIGHT");
   }
 
@@ -113,13 +126,16 @@ export class NebulaEngine {
     this.events.onFlightChange(this.ship.flightMode ? "FLIGHT" : this.player.zeroG ? "EVA" : "SURFACE");
   }
 
-  craftCargoModule() { this.ship.addCargoModule(); }
+  craftCargoModule() {
+    this.ship.addCargoModule();
+    networkClient.emitVoxelModify({ chunkKey: "ship:starter-vessel", x: Math.round(this.ship.centerOfMass.x * 10), y: 1, z: Math.round(this.ship.centerOfMass.z * 10), block: 8 });
+  }
 
   private requestPointerLock = () => { if (this.active && document.pointerLockElement !== this.canvas) this.canvas.requestPointerLock?.(); };
   private resize = () => { this.camera.aspect = window.innerWidth / window.innerHeight; this.camera.updateProjectionMatrix(); this.renderer.setSize(window.innerWidth, window.innerHeight, false); };
 
   private handleKey(code: string, pressed: boolean) {
-    const mapping: Record<string, keyof MovementInput> = { KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right", Space: "ascend", ShiftLeft: "descend", ShiftRight: "descend" };
+    const mapping: Record<string, keyof MovementInput> = { KeyW: "forward", KeyS: "back", KeyA: "left", KeyD: "right", Space: "ascend", ShiftLeft: "descend", ShiftRight: "descend", KeyQ: "rollLeft", KeyR: "rollRight", ArrowUp: "pitchUp", ArrowDown: "pitchDown" };
     if (mapping[code]) this.input[mapping[code]] = pressed;
     if (code === "Space") this.input.jump = pressed;
     if (code === "KeyF" && pressed && !this.demo) this.toggleFlight();
@@ -161,8 +177,11 @@ export class NebulaEngine {
       const speed = Math.sqrt(velocity.x ** 2 + velocity.y ** 2 + velocity.z ** 2);
       const fuel = Math.max(18, 86 - speed * 1.8);
       const reactor = Math.min(96, 42 + speed * 4.5);
-      this.events.onTelemetry({ mode, speed, altitude: Math.max(0, position.y - 7), oxygen: mode === "EVA" ? 88 : 97, reactor, fuel, hull: 100, centerOfMass: [this.ship.centerOfMass.x, this.ship.centerOfMass.y, this.ship.centerOfMass.z], network: this.networkStatus, drawCalls: this.renderer.info.render.calls });
-      networkClient.emitPlayerState({ position: [position.x, position.y, position.z], rotation: this.yaw });
+      const telemetry: GameTelemetry = { mode, speed, altitude: Math.max(0, position.y - 7), oxygen: mode === "EVA" ? 88 : 97, reactor, fuel, hull: 100, centerOfMass: [this.ship.centerOfMass.x, this.ship.centerOfMass.y, this.ship.centerOfMass.z], network: this.networkStatus, drawCalls: this.renderer.info.render.calls };
+      this.events.onTelemetry(telemetry);
+      this.diegeticTelemetry.update(telemetry);
+      networkClient.emitPlayerMove({ position: { x: position.x, y: position.y, z: position.z }, velocity: { x: velocity.x, y: velocity.y, z: velocity.z }, rotation: { x: this.camera.rotation.x, y: this.camera.rotation.y, z: this.camera.rotation.z, w: this.camera.quaternion.w } });
+      if (this.ship.flightMode) networkClient.emitShipSteer({ shipId: "starter-vessel", thrusters: { forward: this.input.forward, reverse: this.input.back, port: this.input.left, starboard: this.input.right, ascend: this.input.ascend, descend: this.input.descend, rollLeft: this.input.rollLeft, rollRight: this.input.rollRight, pitchUp: this.input.pitchUp, pitchDown: this.input.pitchDown }, coreTemperature: reactor, fuel });
       this.lastTelemetry = performance.now();
     }
   }
@@ -174,6 +193,27 @@ export class NebulaEngine {
     this.camera.lookAt(new THREE.Vector3(0, 7.8, 0));
   }
 
+  private upsertRemotePlayer(player: PlayerState) {
+    let marker = this.remotePlayers.get(player.userId);
+    if (!marker) {
+      marker = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.74, 4, 8), new THREE.MeshStandardMaterial({ color: 0x68cdd0, emissive: 0x103f47, emissiveIntensity: 0.55, roughness: 0.45, metalness: 0.36 }));
+      marker.castShadow = true;
+      this.remotePlayers.set(player.userId, marker);
+      this.scene.add(marker);
+    }
+    marker.position.set(player.position.x, player.position.y + 0.55, player.position.z);
+    marker.rotation.set(player.rotation.x, player.rotation.y, player.rotation.z);
+  }
+
+  private removeRemotePlayer(userId: string) {
+    const marker = this.remotePlayers.get(userId);
+    if (!marker) return;
+    this.scene.remove(marker);
+    marker.geometry.dispose();
+    (marker.material as THREE.Material).dispose();
+    this.remotePlayers.delete(userId);
+  }
+
   dispose() {
     this.renderer.setAnimationLoop(null);
     this.canvas.removeEventListener("click", this.requestPointerLock);
@@ -183,6 +223,9 @@ export class NebulaEngine {
     window.removeEventListener("resize", this.resize);
     this.chunks.dispose();
     this.ship.dispose();
+    this.diegeticTelemetry.dispose();
+    this.remotePlayers.forEach((_, userId) => this.removeRemotePlayer(userId));
+    networkClient.dispose();
     this.renderer.dispose();
   }
 }

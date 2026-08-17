@@ -2,8 +2,9 @@
 import * as CANNON from "cannon-es";
 import * as THREE from "three";
 import { BLOCKS, BlockType } from "@/voxels/blocks";
+import type { MovementInput } from "./PlayerController";
 
-export type ShipInput = Pick<Record<"forward" | "back" | "left" | "right", boolean>, "forward" | "back" | "left" | "right">;
+export type ShipInput = Pick<MovementInput, "forward" | "back" | "left" | "right" | "ascend" | "descend" | "rollLeft" | "rollRight" | "pitchUp" | "pitchDown">;
 type ShipModule = { type: BlockType; position: THREE.Vector3; mesh: THREE.Mesh };
 
 export class ShipController {
@@ -74,8 +75,14 @@ export class ShipController {
   update(input: ShipInput, delta: number) {
     const thrust = input.forward ? 140 : input.back ? -70 : 0;
     this.thrustLevel += (thrust - this.thrustLevel) * Math.min(1, delta * 4.5);
-    if (this.flightMode && Math.abs(this.thrustLevel) > 1) this.body.applyLocalForce(new CANNON.Vec3(0, 0, -this.thrustLevel), new CANNON.Vec3(0, 0, 0));
-    if (this.flightMode && (input.left || input.right)) this.body.torque.y += (input.left ? 1 : -1) * 28;
+    if (this.flightMode) {
+      const lateral = input.right ? 58 : input.left ? -58 : 0;
+      const vertical = input.ascend ? 58 : input.descend ? -58 : 0;
+      this.body.applyLocalForce(new CANNON.Vec3(lateral, vertical, -this.thrustLevel), new CANNON.Vec3(0, 0, 0));
+      if (input.left || input.right) this.body.torque.y += (input.left ? 1 : -1) * 28;
+      if (input.rollLeft || input.rollRight) this.body.torque.z += (input.rollLeft ? 1 : -1) * 22;
+      if (input.pitchUp || input.pitchDown) this.body.torque.x += (input.pitchUp ? 1 : -1) * 22;
+    }
     this.engineFlames.forEach((flame) => {
       flame.visible = this.flightMode && Math.abs(this.thrustLevel) > 8;
       flame.scale.z = Math.max(0.15, Math.abs(this.thrustLevel) / 90);

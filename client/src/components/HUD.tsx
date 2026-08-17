@@ -7,7 +7,7 @@ const meter = (label: string, value: number, tone = "amber") => <div className="
 const modeLabel: Record<FlightMode, string> = { SURFACE: "SURFACE WALK", EVA: "EVA THRUSTER", FLIGHT: "FLIGHT BOUND" };
 
 export function HUD({ telemetry, panel, onPanel, onFlight }: HudProps) {
-  const networkText: Record<NetworkStatus, string> = { LOCAL: "LOCAL", CONNECTING: "LINKING", SYNCED: "SYNCED", OFFLINE: "OFFLINE" };
+  const networkText: Record<NetworkStatus, string> = { LOCAL: "LOCAL", MOCK: "MOCK LINK", CONNECTING: "LINKING", SYNCED: "SYNCED", OFFLINE: "OFFLINE" };
   return <>
     <header className="hud-topbar">
       <div className="hud-brand"><img src="/manus-storage/nebula-bound-nav-mark_4342ae0a.png" alt="" /><span>NB</span><i /></div>

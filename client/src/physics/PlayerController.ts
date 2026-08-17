@@ -2,7 +2,7 @@
 import * as CANNON from "cannon-es";
 import * as THREE from "three";
 
-export type MovementInput = Record<"forward" | "back" | "left" | "right" | "ascend" | "descend" | "jump", boolean>;
+export type MovementInput = Record<"forward" | "back" | "left" | "right" | "ascend" | "descend" | "jump" | "rollLeft" | "rollRight" | "pitchUp" | "pitchDown", boolean>;
 
 export class PlayerController {
   readonly body: CANNON.Body;
@@ -10,7 +10,12 @@ export class PlayerController {
   private jumpArmed = false;
 
   constructor(world: CANNON.World) {
-    this.body = new CANNON.Body({ mass: 72, shape: new CANNON.Sphere(0.45), position: new CANNON.Vec3(-4, 9, 8), linearDamping: 0.22 });
+    this.body = new CANNON.Body({ mass: 72, position: new CANNON.Vec3(-4, 9, 8), linearDamping: 0.22 });
+    const radius = 0.45;
+    const cylinder = new CANNON.Cylinder(radius, radius, 0.9, 8);
+    this.body.addShape(cylinder, new CANNON.Vec3(), new CANNON.Quaternion().setFromEuler(Math.PI / 2, 0, 0));
+    this.body.addShape(new CANNON.Sphere(radius), new CANNON.Vec3(0, 0.45, 0));
+    this.body.addShape(new CANNON.Sphere(radius), new CANNON.Vec3(0, -0.45, 0));
     world.addBody(this.body);
   }
 

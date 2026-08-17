@@ -17,7 +17,7 @@
 
 ## Data Contracts
 
-`GameTelemetry` is the sole engine-to-React state contract. It carries movement mode, physical readings, center of mass, hull integrity, and network state. `NetworkClient` emits a compact `player:state` event only when an endpoint is configured; until then it remains deliberately local.
+`GameTelemetry` is the sole engine-to-React state contract. It carries movement mode, physical readings, center of mass, hull integrity, and network state. `NetworkClient` performs an optional Supabase JWT handshake, emits `room:join`, `player:move`, `voxel:modify`, and `ship:steer`, and presents an explicit mock transport when a live session is unavailable. `MockNetworkServer` exercises the same typed payloads in standalone mode, while `LocalPersistence` retains non-authoritative room and crew metadata in IndexedDB.
 
 ## Asset Hints
 

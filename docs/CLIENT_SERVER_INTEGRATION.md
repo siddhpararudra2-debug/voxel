@@ -4,9 +4,9 @@ This document defines the boundary between the current Nebula Bound client and t
 
 ## Current status
 
-The client already includes a typed Socket.io singleton at `client/src/network/NetworkClient.ts`. It detects `VITE_SOCKET_URL`, exposes `LOCAL`, `CONNECTING`, `SYNCED`, and `OFFLINE` states to the HUD, and can emit a compact local player-state event. The server already authenticates connections and exposes the room, movement, voxel, ship, and faction events described below.
+The client includes a typed Socket.io singleton at `client/src/network/NetworkClient.ts`. When both `VITE_SOCKET_URL` and a Supabase access token are supplied, it sends the token through Socket.io `auth.token` and an `Authorization: Bearer` handshake header, then emits `room:join`, `player:move`, `voxel:modify`, and `ship:steer` using the server schemas. It consumes room, player, voxel, ship, and error events; remote players become visible Three.js markers.
 
-The remaining integration work is an **adapter gap**: the client currently emits `player:state`, whereas the server protocol uses `room:join` and `player:move`. This is intentional rather than hidden. A client is not considered live multiplayer until it implements the authenticated handshake, joins a room, maps local inputs to server events, consumes broadcasts, and reconciles its prediction with authoritative state.
+When a URL or token is unavailable, the client intentionally reports **MOCK LINK** rather than pretending to be online. `MockNetworkServer` executes the same typed event contract in-browser, while `LocalPersistence` records the local room and crew session in IndexedDB. This permits standalone client work without changing the multiplayer event vocabulary.
 
 ## Required connection sequence
 
@@ -44,13 +44,11 @@ sequenceDiagram
 
 ## Implementation checklist
 
-1. Add the Supabase browser-auth flow and obtain the active user’s access token before creating the Socket.io connection.
-2. Replace the client’s temporary `player:state` emission with a rate-limited `player:move` payload that matches the server schema exactly.
-3. Join a selected room with `room:join`, hydrate state from `room:joined`, and maintain a remote-player registry in the Three.js scene.
-4. Route block placement/removal through `voxel:modify`; do not make an optimistic client edit durable until the server accepts it.
-5. Route cockpit controls through `ship:steer`, retain client-side interpolation for responsiveness, and reconcile on server broadcasts.
-6. Display `server:error` as a concise equipment-notice state and restore the authoritative world/ship/inventory state when a request is rejected.
-7. Exercise both one-client and two-client test cases, including unauthenticated connection rejection, a full ten-player room, speed-limit rejection, denied faction construction, persistence failure retry, and reconnect behavior.
+1. Provide a Supabase browser-auth journey that obtains the active user’s access token and places it in the access terminal before connecting.
+2. Select or expose a user-facing room identifier instead of relying on the current field default, then hydrate remote world/chunk state from `room:joined`.
+3. Route every future placement/removal interaction through `voxel:modify`; do not make an optimistic client edit durable until the server accepts it.
+4. Reconcile local ship transforms, inventory, and block state after accepted or rejected server broadcasts instead of only displaying remote markers.
+5. Exercise one-client and two-client test cases, including unauthenticated rejection, a full ten-player room, speed-limit rejection, denied faction construction, persistence retry, and reconnect behavior.
 
 ## Client environment
 

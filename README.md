@@ -2,7 +2,7 @@
 
 **Nebula Bound** is a browser-based voxel space sandbox. The repository contains the WebGL client that renders and simulates the player experience, plus an authoritative multiplayer backend that validates state, coordinates rooms, and persists world data.
 
-> **Project status:** The client is playable as a standalone local simulation. The server is implemented as a separate Node.js service. The final transport adapter that maps every live client action to the authoritative Socket.io protocol remains the next integration task; this boundary is documented explicitly in the [integration guide](docs/CLIENT_SERVER_INTEGRATION.md).
+> **Project status:** The client is playable with an explicit IndexedDB-backed local mock or an authenticated Socket.io session. It implements the shared room, movement, voxel, and ship event contract; a deployed server URL, a Supabase sign-in journey that obtains the access token, and production hosting configuration remain the operational handoff. See the [integration guide](docs/CLIENT_SERVER_INTEGRATION.md).
 
 ## What is in this repository
 
@@ -15,7 +15,7 @@
 
 ## Key capabilities
 
-The client presents a full-screen **Orbital Field Manual** interface around a Three.js world. It creates 16×16×16 voxel chunks with greedy face merging, supports pointer-lock surface traversal and altitude-triggered EVA movement, and lets a player bind to a modular ship cockpit. Vessel mass and center of mass are recalculated from attached block modules, while the HUD exposes oxygen, fuel, reactor load, hull, speed, altitude, draw-call count, and network state.
+The client presents a full-screen **Orbital Field Manual** interface around a Three.js world. It creates 16×16×16 voxel chunks with greedy face merging, supports pointer-lock surface traversal and altitude-triggered EVA movement with a Cannon-es capsule approximation, and lets a player bind to a modular ship cockpit for six-degree flight. Vessel mass and center of mass are recalculated from attached block modules, while the HUD and diegetic cockpit/visor displays expose oxygen, fuel, reactor load, hull, speed, altitude, draw-call count, and network state.
 
 The server is designed as the authoritative multiplayer layer. It authenticates Socket.io handshakes with Supabase access tokens, limits rooms to ten players, validates movement and voxel mutations, restricts faction construction, and retries dirty-state persistence through its autosave worker.
 
@@ -118,6 +118,7 @@ The browser client and server intentionally have separate lifecycles. The client
 | --- | --- |
 | [Architecture](docs/ARCHITECTURE.md) | Module ownership, runtime boundaries, persistence flow, and rendering/physics responsibilities. |
 | [Client-server integration](docs/CLIENT_SERVER_INTEGRATION.md) | Socket authentication, authoritative event mapping, current integration gap, and completion checklist. |
+| [PRD 1 reconciliation](PRD_1_RECONCILIATION.md) | Requirement-by-requirement record for the updated frontend PRD. |
 | [Backend guide](nebula-server/README.md) | Server-specific configuration, protocol, persistence, and operational behavior. |
 | [Contributing](CONTRIBUTING.md) | Local workflow, change-quality requirements, testing, and security rules. |
 | [Documentation index](docs/README.md) | A compact map of all repository documents. |
