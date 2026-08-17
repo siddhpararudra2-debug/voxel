@@ -64,6 +64,22 @@ Authenticated clients can call `POST /api/factions` with `{ "name": "My Faction"
 | `MAX_MOVE_SPEED` | Maximum validated movement speed | `40` |
 | `MAX_VOXEL_EDITS_PER_SECOND` | Per-user voxel edit limit | `30` |
 
+## Integration contract and stress testing
+
+PRD 2 adds strict Zod contracts for `room:join`, `player:move`, `voxel:modify`, and `ship:steer`. Payloads must match the documented fields exactly; malformed values and unexpected fields are rejected before state mutation. The repository includes both the existing Vitest unit suite and a Jest/Supertest integration suite:
+
+```bash
+SUPABASE_URL=https://example.supabase.co SUPABASE_ANON_KEY=test-anon SUPABASE_SERVICE_ROLE_KEY=test-service PORT=3317 pnpm test:integration
+```
+
+The ten-client WebSocket stress harness requires a valid Supabase access token and exercises one room with high-frequency movement packets:
+
+```bash
+SUPABASE_TEST_TOKEN=<valid-access-token> NEBULA_SERVER_URL=http://localhost:3000 pnpm stress
+```
+
+The harness connects ten virtual clients, joins the same room, emits movement packets for the configured duration, counts broadcasts and protocol errors, and exits non-zero if the ten-client contract is not satisfied.
+
 ## Production notes
 
 Run exactly one persistent server instance per authoritative room-state domain unless room state is moved to a shared coordination layer. Use TLS at the edge, restrict `CORS_ORIGIN`, rotate Supabase keys through the hosting provider's secret manager, and monitor the `/health` and `/ready` endpoints. The current implementation deliberately fails closed for authentication and preserves dirty state on persistence errors.

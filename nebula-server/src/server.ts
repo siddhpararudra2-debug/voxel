@@ -9,6 +9,7 @@ import { GameRepository } from './database/repository.js';
 import { AutosaveWorker } from './services/autosave.js';
 import { RoomManager } from './sockets/room-manager.js';
 import type { PlayerState, Vector3, Rotation } from './models/domain.js';
+import { parseContract, roomJoinSchema, playerMoveSchema, voxelModifySchema, shipSteerSchema } from './types/contracts.js';
 
 const app: Express = express();
 app.use(helmet());
@@ -67,9 +68,10 @@ io.on('connection', (socket) => {
   let roomId: string | undefined;
   let player: PlayerState | undefined;
 
-  socket.on('room:join', (payload: { roomId?: string; username?: string; position?: Vector3 }) => {
+  socket.on('room:join', (rawPayload: unknown) => {
     try {
-      const requestedRoom = payload?.roomId?.trim();
+      const payload = parseContract(roomJoinSchema, rawPayload);
+      const requestedRoom = payload.roomId;
       if (!requestedRoom || requestedRoom.length > 64) throw new Error('Invalid room ID');
       roomId = requestedRoom;
       player = {
@@ -89,9 +91,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('player:move', (payload: { position: Vector3; velocity: Vector3; rotation: Rotation }) => {
+  socket.on('player:move', (rawPayload: unknown) => {
     try {
-      if (!roomId || !isVector3(payload?.position) || !isVector3(payload?.velocity) || !isRotation(payload?.rotation)) throw new Error('Invalid movement payload');
+      const payload = parseContract(playerMoveSchema, rawPayload);
+      if (!roomId) throw new Error('Join a room first');
       const updated = rooms.updatePlayer(roomId, userId, payload);
       player = updated;
       socket.to(roomId).emit('player:moved', updated);
@@ -100,9 +103,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('voxel:modify', (payload: { chunkKey: string; x: number; y: number; z: number; block: unknown; factionId?: string }) => {
+  socket.on('voxel:modify', (rawPayload: unknown) => {
     try {
-      if (!rooms.canBuild(payload?.factionId, userId)) throw new Error('Faction permission denied');
+      const payload = parseContract(voxelModifySchema, rawPayload);
+      if (!rooms.canBuild(payload.factionId, userId)) throw new Error('Faction permission denied');
       const chunk = rooms.modifyVoxel(userId, payload.chunkKey, payload.x, payload.y, payload.z, payload.block);
       if (!roomId) throw new Error('Join a room first');
       io.to(roomId).emit('voxel:modified', { userId, chunkKey: chunk.chunkKey, x: payload.x, y: payload.y, z: payload.z, block: payload.block, updatedAt: chunk.updatedAt });
@@ -111,12 +115,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('ship:steer', (payload: { shipId: string; thrusters: Record<string, boolean>; coreTemperature: number; fuel: number }) => {
-    if (!roomId || typeof payload?.shipId !== 'string' || !Number.isFinite(payload.coreTemperature) || !Number.isFinite(payload.fuel)) {
-      socket.emit('server:error', { event: 'ship:steer', message: 'Invalid ship telemetry' });
-      return;
+  socket.on('ship:steer', (rawPayload: unknown) => {
+    try {
+      const payload = parseContract(shipSteerSchema, rawPayload);
+      if (!roomId) throw new Error('Join a room first');
+      socket.to(roomId).emit('ship:steered', { ...payload, userId, timestamp: Date.now() });
+    } catch (error) {
+      socket.emit('server:error', { event: 'ship:steer', message: error instanceof Error ? error.message : 'Invalid ship telemetry' });
     }
-    socket.to(roomId).emit('ship:steered', { ...payload, userId, timestamp: Date.now() });
   });
 
   socket.on('disconnect', () => {
@@ -125,7 +131,7 @@ io.on('connection', (socket) => {
 });
 
 autosave.start();
-const server = httpServer.listen(env.PORT, () => console.log(`Nebula Bound server listening on port ${env.PORT}`));
+export const server = httpServer.listen(env.PORT, () => console.log(`Nebula Bound server listening on port ${env.PORT}`));
 
 const shutdown = async (signal: string) => {
   console.log(`[server] ${signal}; flushing state before shutdown`);
