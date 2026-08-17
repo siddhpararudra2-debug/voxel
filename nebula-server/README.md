@@ -2,6 +2,8 @@
 
 This directory contains the authoritative backend for **Nebula Bound**, a browser-based multiplayer voxel sandbox. It provides authenticated Express APIs, Socket.io room synchronization, server-side movement and voxel validation, faction permissions, Supabase persistence, and a ten-second dirty-state auto-save worker.
 
+For repository-level setup, browser-client commands, deployment boundaries, and the current transport-adapter status, start with the root [README](../README.md). The complete protocol handoff is documented in the [client–server integration guide](../docs/CLIENT_SERVER_INTEGRATION.md).
+
 ## Requirements
 
 Use Node.js 20 or newer and a Supabase project. Apply `supabase/migrations/001_initial_schema.sql` in the Supabase SQL editor or through the Supabase CLI. The server requires both the Supabase anonymous key, used to validate user JWTs, and the service-role key, used only on the trusted server for persistence. Never expose the service-role key to a browser client.
