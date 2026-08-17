@@ -1,0 +1,4 @@
+nebula-server/node_modules/
+nebula-server/dist/
+nebula-server/.vite/
+nebula-server/.env
